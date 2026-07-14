@@ -1,0 +1,1 @@
+window.__DETAIL_CB__("632700",[[359,"玉树州存量政府投资项目","其他",null,null,null,null,null,null,null,0,0,null,null,null,null,"青海省","玉树藏族自治州",null,"25青海07","234931","2025-07-09",1.74,10,"-","2025年青海省政府专项债券(四期)",null,null,null,null,null,null,null,null,null,null,2025]]);
