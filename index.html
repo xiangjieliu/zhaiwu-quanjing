@@ -288,14 +288,14 @@ function isDark(){ return document.body.classList.contains("dark"); }
 function pal(){
   return isDark() ? {
     ramp:["#16304f","#1e4a79","#2e6cae","#4a90d9","#7fbcf7","#ffd98a"],
-    noData:"#141f33", border:"rgba(150,185,230,.28)", emph:"#ffd27f",
+    noData:"#1e2f4e", border:"rgba(158,192,236,.55)", emph:"#ffd27f",
     tipBg:"rgba(14,26,46,.95)", tipTxt:"#e6edf7", tipBorder:"rgba(150,185,230,.25)",
     axis:"#8ea3c0", split:"rgba(148,180,220,.12)", title:"#8ea3c0",
     bar:"#4a90d9", bar2:"#6fa8dd", barSel:"#ffd98a", line:"#ff9a6b",
     catBar:"#5b93cc", catBarSel:"#e0955f", label:"#c6d6ec"
   } : {
     ramp:["#e8eff7","#a8c8e8","#5b93cc","#2f6db5","#1b4a86","#0d2f5e"],
-    noData:"#f0f2f5", border:"#c8d2de", emph:"#ffd27f",
+    noData:"#e4e9f1", border:"#aebccd", emph:"#ffd27f",
     tipBg:"rgba(255,255,255,.97)", tipTxt:"#1c2a3a", tipBorder:"#e4e9f0",
     axis:"#6b7a90", split:"#eef1f5", title:"#6b7a90",
     bar:"#2f6db5", bar2:"#5b93cc", barSel:"#173f6e", line:"#d94e2a",
@@ -401,7 +401,7 @@ function renderMap(){
       nameProperty:"code", roam:true,
       zoom: view==="cn"?1.05:1,
       scaleLimit:{min:0.7, max:12},
-      itemStyle:{ areaColor:P.noData, borderColor:P.border, borderWidth:0.4 },
+      itemStyle:{ areaColor:P.noData, borderColor:P.border, borderWidth: view==="cn" ? 0.4 : 0.8 },
       emphasis:{ label:{show:true, fontSize:11, color:"#26324a", formatter:function(p){
                    return p.data && p.data.zx ? ZX[p.name] : (UNITS[p.name]? UNITS[p.name][0] : (geoNames[p.name]||"")); }},
                  itemStyle:{areaColor:P.emph} },
