@@ -292,14 +292,23 @@ function provVal(pc, y, c){
 }
 
 /* ---------- 地图注册 ---------- */
+/* 全国视图 = 省级着色面 + 市级边界线（装饰层）+ 省级描边（交互层，code 前缀 B）+ 九段线 */
 var provGeo = window.__GEO_PROV__;
-provGeo.features = provGeo.features.concat(window.__GEO_9DL__.features);
-echarts.registerMap("cn_prov", provGeo);
 var cityGeo = window.__GEO_CITY__;
+var ZXC = {"110000":1,"120000":1,"310000":1,"500000":1};
+var cityLineFeats = cityGeo.features.filter(function(f){
+  var c = f.properties.code; return c!=="9DL" && !ZXC[c];
+});
+var provBorderFeats = provGeo.features.map(function(f){
+  return {type:"Feature", properties:{code:"B"+f.properties.code, name:f.properties.name}, geometry:f.geometry};
+});
+echarts.registerMap("cn_prov", {type:"FeatureCollection",
+  features: provGeo.features.concat(cityLineFeats, provBorderFeats, window.__GEO_9DL__.features)});
 
 var geoNames = {};
 provGeo.features.forEach(function(f){ geoNames[f.properties.code] = f.properties.name; });
 cityGeo.features.forEach(function(f){ geoNames[f.properties.code] = f.properties.name; });
+geoNames["9DL"] = "九段线";
 
 /* ---------- 主题 ---------- */
 function isDark(){ return document.body.classList.contains("dark"); }
@@ -310,14 +319,16 @@ function pal(){
     tipBg:"rgba(14,26,46,.95)", tipTxt:"#e6edf7", tipBorder:"rgba(150,185,230,.25)",
     axis:"#8ea3c0", split:"rgba(148,180,220,.12)", title:"#8ea3c0",
     bar:"#4a90d9", bar2:"#6fa8dd", barSel:"#ffd98a", line:"#ff9a6b",
-    catBar:"#5b93cc", catBarSel:"#e0955f", label:"#c6d6ec"
+    catBar:"#5b93cc", catBarSel:"#e0955f", label:"#c6d6ec",
+    cityLine:"rgba(150,185,230,.16)", provLine:"rgba(175,205,240,.55)"
   } : {
     ramp:["#e8eff7","#a8c8e8","#5b93cc","#2f6db5","#1b4a86","#0d2f5e"],
     noData:"#f0f2f5", border:"#c8d2de", emph:"#ffd27f",
     tipBg:"rgba(255,255,255,.97)", tipTxt:"#1c2a3a", tipBorder:"#e4e9f0",
     axis:"#6b7a90", split:"#eef1f5", title:"#6b7a90",
     bar:"#2f6db5", bar2:"#5b93cc", barSel:"#173f6e", line:"#d94e2a",
-    catBar:"#5b93cc", catBarSel:"#e0784f", label:"#44536b"
+    catBar:"#5b93cc", catBarSel:"#e0784f", label:"#44536b",
+    cityLine:"rgba(150,165,190,.32)", provLine:"#9fb0c4"
   };
 }
 (function initTheme(){
@@ -358,8 +369,20 @@ function mkItem(name, v){
 function mapData(){
   var arr = [];
   if(view==="cn"){
+    var P = pal();
     Object.keys(provUnits).forEach(function(pc){
       arr.push(mkItem(pc, provVal(pc, yearSel, catSel)));
+    });
+    /* 市级边界线装饰层：透明填充，只画细界线，不参与交互 */
+    cityLineFeats.forEach(function(f){
+      arr.push({name:f.properties.code, ov:1,
+        itemStyle:{areaColor:"rgba(0,0,0,0)", borderColor:P.cityLine, borderWidth:0.35},
+        emphasis:{disabled:true}, select:{disabled:true}});
+    });
+    /* 省级描边交互层：盖在市级线上方，保证省界清晰、悬停/点击仍以省为单位 */
+    provGeo.features.forEach(function(f){
+      arr.push({name:"B"+f.properties.code, bd:1,
+        itemStyle:{areaColor:"rgba(0,0,0,0)", borderColor:P.provLine, borderWidth:0.8}});
     });
   }else{
     Object.keys(UNITS).forEach(function(code){
@@ -394,21 +417,35 @@ function renderMap(){
       trigger:"item", confine:true,
       backgroundColor:P.tipBg, borderColor:P.tipBorder, textStyle:{color:P.tipTxt},
       formatter:function(p){
-        if(!p.data || !p.data.cnt){
-          var nm = geoNames[p.name]||p.name;
-          return nm==="九段线" ? "" : nm + "<br/>无收录政策";
-        }
         var code = p.name;
-        var nm2 = view==="cn" ? provName[code] : (UNITS[code]?UNITS[code][0]:geoNames[code]);
-        var ct = catSel>=0? " · "+CATS[catSel] : "";
-        var vp = view==="cn"? provVal(code,yearSel,0) : unitVal(code,yearSel,0);
-        var vr = view==="cn"? provVal(code,yearSel,1) : unitVal(code,yearSel,1);
-        var hint2 = view==="cn" ? (ZX[code]? "点击查看政策明细" : "点击进入市级视图") : "点击查看政策明细";
-        return "<b>"+nm2+"</b>　<span style='color:#8aa'>"+yearLabel()+ct+"</span><br/>"+
+        if(code==="9DL") return "";
+        if(p.data && p.data.ov) return "";
+        if(view==="cn" && code.charAt(0)==="B") code = code.slice(1);
+        if(view==="cn"){
+          var v = provVal(code, yearSel, catSel);
+          var nm = provName[code]||geoNames[code]||code;
+          if(!v[0]) return nm + "<br/>无收录政策";
+          var ct = catSel>=0? " · "+CATS[catSel] : "";
+          var vp = provVal(code,yearSel,0), vr = provVal(code,yearSel,1);
+          var hint2 = ZX[code]? "点击查看政策明细" : "点击进入市级视图";
+          return "<b>"+nm+"</b>　<span style='color:#8aa'>"+yearLabel()+ct+"</span><br/>"+
+                 "政策文件：<b>"+fmtInt(v[0])+"</b> 份<br/>"+
+                 (catSel>=0? "" : "促发展 "+fmtInt(vp[0])+" · 防风险 "+fmtInt(vr[0])+"<br/>")+
+                 "平均权力总分："+fmt(v[1]/v[0])+
+                 "<br/><span style='color:#d94e2a'>"+hint2+"</span>";
+        }
+        if(!p.data || !p.data.cnt){
+          var nm3 = geoNames[code]||code;
+          return nm3 + "<br/>无收录政策";
+        }
+        var nm2 = UNITS[code]?UNITS[code][0]:geoNames[code];
+        var ct2 = catSel>=0? " · "+CATS[catSel] : "";
+        var vp2 = unitVal(code,yearSel,0), vr2 = unitVal(code,yearSel,1);
+        return "<b>"+nm2+"</b>　<span style='color:#8aa'>"+yearLabel()+ct2+"</span><br/>"+
                "政策文件：<b>"+fmtInt(p.data.cnt)+"</b> 份<br/>"+
-               (catSel>=0? "" : "促发展 "+fmtInt(vp[0])+" · 防风险 "+fmtInt(vr[0])+"<br/>")+
+               (catSel>=0? "" : "促发展 "+fmtInt(vp2[0])+" · 防风险 "+fmtInt(vr2[0])+"<br/>")+
                "平均权力总分："+fmt(p.data.avg)+
-               "<br/><span style='color:#d94e2a'>"+hint2+"</span>";
+               "<br/><span style='color:#d94e2a'>点击查看政策明细</span>";
       }
     },
     visualMap:{
@@ -424,8 +461,9 @@ function renderMap(){
       scaleLimit:{min:0.7, max:12},
       itemStyle:{ areaColor:P.noData, borderColor:P.border, borderWidth:0.4 },
       emphasis:{ label:{show:true, fontSize:11, color:"#26324a", formatter:function(p){
-                   return view==="cn" ? (provName[p.name]||geoNames[p.name]||"")
-                                      : (UNITS[p.name]? UNITS[p.name][0] : (geoNames[p.name]||"")); }},
+                   var c = (view==="cn" && p.name.charAt(0)==="B") ? p.name.slice(1) : p.name;
+                   return view==="cn" ? (provName[c]||geoNames[c]||"")
+                                      : (UNITS[c]? UNITS[c][0] : (geoNames[c]||"")); }},
                  itemStyle:{areaColor:P.emph} },
       select:{disabled:true},
       label:{show:view!=="cn", fontSize:10, color:P.label, formatter:function(p){
@@ -462,6 +500,7 @@ chart.on("click", function(p){
   if(p.seriesType!=="map") return;
   var code = p.name;
   if(code==="9DL") return;
+  if(view==="cn" && code.charAt(0)==="B") code = code.slice(1);
   if(view==="cn"){
     if(ZX[code]){ if(UNITS[code+"P"]) openPanel(code+"P"); return; }
     if(provUnits[code]) enterProv(code);
